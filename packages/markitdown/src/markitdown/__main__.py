@@ -2,6 +2,7 @@
 #
 # SPDX-License-Identifier: MIT
 import argparse
+import contextlib
 import sys
 import codecs
 from typing import Any, Dict
@@ -9,6 +10,7 @@ from textwrap import dedent
 from importlib.metadata import entry_points
 from .__about__ import __version__
 from ._markitdown import MarkItDown, StreamInfo, DocumentConverterResult
+from ._web_ui import serve_web_ui
 
 
 def main():
@@ -22,6 +24,9 @@ def main():
 
                 markitdown <OPTIONAL: FILENAME>
                 If FILENAME is empty, markitdown reads from stdin.
+
+                markitdown --web
+                Start a local web UI for dropping files and previewing Markdown.
 
             EXAMPLE:
 
@@ -138,6 +143,25 @@ def main():
         help="Keep data URIs (like base64-encoded images) in the output. By default, data URIs are truncated.",
     )
 
+    parser.add_argument(
+        "--web",
+        action="store_true",
+        help="Start a local web UI for dropping files and previewing Markdown output.",
+    )
+
+    parser.add_argument(
+        "--web-host",
+        default="127.0.0.1",
+        help="Host interface for the web UI server (default: 127.0.0.1).",
+    )
+
+    parser.add_argument(
+        "--web-port",
+        type=int,
+        default=8000,
+        help="Port for the web UI server (default: 8000).",
+    )
+
     parser.add_argument("filename", nargs="?")
     args = parser.parse_args()
 
@@ -243,6 +267,20 @@ def main():
         markitdown = MarkItDown(enable_plugins=args.use_plugins, **cu_kwargs)
     else:
         markitdown = MarkItDown(enable_plugins=args.use_plugins)
+
+    if args.web:
+        if args.filename is not None:
+            _exit_with_error("Filename cannot be used together with --web.")
+        if args.output is not None:
+            _exit_with_error("--output cannot be used together with --web.")
+        with contextlib.suppress(KeyboardInterrupt):
+            serve_web_ui(
+                markitdown,
+                host=args.web_host,
+                port=args.web_port,
+                keep_data_uris=args.keep_data_uris,
+            )
+        return
 
     if args.filename is None:
         result = markitdown.convert_stream(

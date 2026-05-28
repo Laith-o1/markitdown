@@ -88,6 +88,16 @@ You can also pipe content:
 cat path-to-file.pdf | markitdown
 ```
 
+### Web UI
+
+Start a local browser UI that accepts drag-and-drop uploads and returns the converted Markdown directly in the page:
+
+```bash
+markitdown --web
+```
+
+By default the server binds to `127.0.0.1:8000`. You can change the host or port with `--web-host` and `--web-port`.
+
 ### Optional Dependencies
 MarkItDown has optional dependencies for activating various file formats. Earlier in this document, we installed all optional dependencies with the `[all]` option. However, you can also install them individually for more control. For example:
 
