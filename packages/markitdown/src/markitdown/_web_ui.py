@@ -1,5 +1,7 @@
-import cgi
+import io
 import json
+from email import policy
+from email.parser import BytesParser
 import mimetypes
 import os
 from http import HTTPStatus
@@ -555,18 +557,11 @@ class _MarkItDownWebHandler(BaseHTTPRequestHandler):
         if not content_type.startswith("multipart/form-data"):
             raise ValueError("Expected multipart form upload.")
 
-        form = cgi.FieldStorage(
-            fp=self.rfile,
-            headers=self.headers,
-            environ={
-                "REQUEST_METHOD": "POST",
-                "CONTENT_TYPE": content_type,
-                "CONTENT_LENGTH": self.headers.get("content-length", "0"),
-            },
-            keep_blank_values=True,
+        uploaded_items = _parse_multipart_form(
+            content_type,
+            self.headers.get("content-length", "0"),
+            self.rfile,
         )
-
-        uploaded_items = list(_iter_uploaded_items(form))
         if not uploaded_items:
             raise ValueError("No files were uploaded.")
 
@@ -643,11 +638,55 @@ def serve_web_ui(
         server.server_close()
 
 
-def _iter_uploaded_items(form: cgi.FieldStorage) -> Iterable[cgi.FieldStorage]:
-  for value in form.list or []:
-    if isinstance(value, cgi.FieldStorage) and value.filename:
-      if value.name in {"files", "file"}:
-        yield value
+class _UploadedItem:
+    def __init__(self, filename: str, file: BinaryIO, type: Optional[str], name: str) -> None:
+        self.filename = filename
+        self.file = file
+        self.type = type
+        self.name = name
+
+
+def _parse_multipart_form(
+    content_type: str,
+    content_length: str,
+    rfile: BinaryIO,
+) -> List[_UploadedItem]:
+    body = rfile.read(int(content_length))
+    raw_message = (
+        f"Content-Type: {content_type}\r\n"
+        f"Content-Length: {content_length}\r\n"
+        f"\r\n"
+    ).encode() + body
+
+    msg = BytesParser(policy=policy.HTTP).parsebytes(raw_message)
+
+    items: List[_UploadedItem] = []
+    if not msg.is_multipart():
+        return items
+
+    for part in msg.walk():
+        if part.get_content_maintype() == "multipart":
+            continue
+        if part.get_content_disposition() != "form-data":
+            continue
+
+        name = part.get_param("name", header="Content-Disposition")
+        filename = part.get_filename()
+        if not filename:
+            continue
+        if name not in {"files", "file"}:
+            continue
+
+        payload = part.get_payload(decode=True)
+        if payload is not None:
+            items.append(_UploadedItem(
+                filename=filename,
+                file=io.BytesIO(payload),
+                type=part.get_content_type(),
+                name=name,
+            ))
+
+    return items
 
 
 def _safe_filename(filename: Optional[str]) -> str:
