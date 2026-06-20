@@ -30,4 +30,6 @@ ARG GROUPID=nogroup
 
 USER $USERID:$GROUPID
 
-ENTRYPOINT [ "markitdown" ]
+EXPOSE 8000
+
+ENTRYPOINT [ "markitdown", "--web", "--web-host", "0.0.0.0" ]

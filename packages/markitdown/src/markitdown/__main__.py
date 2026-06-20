@@ -3,6 +3,7 @@
 # SPDX-License-Identifier: MIT
 import argparse
 import contextlib
+import os
 import sys
 import codecs
 from typing import Any, Dict
@@ -158,8 +159,8 @@ def main():
     parser.add_argument(
         "--web-port",
         type=int,
-        default=8000,
-        help="Port for the web UI server (default: 8000).",
+        default=int(os.environ.get("PORT", "8000")),
+        help="Port for the web UI server (default: $PORT or 8000).",
     )
 
     parser.add_argument("filename", nargs="?")
